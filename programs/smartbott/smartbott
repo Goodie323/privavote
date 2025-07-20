@@ -1,0 +1,64 @@
+use anchor_lang::prelude::*;
+use arcium_anchor::{
+    comp_def_offset, derive_cluster_pda, derive_comp_def_pda, derive_comp_pda, derive_execpool_pda, derive_mempool_pda, derive_mxe_pda, init_comp_def, queue_computation, ARCIUM_CLOCK_ACCOUNT_ADDRESS, ARCIUM_STAKING_POOL_ACCOUNT_ADDRESS, CLUSTER_PDA_SEED, COMP_PDA_SEED,
+    COMP_DEF_PDA_SEED, MEMPOOL_PDA_SEED, MXE_PDA_SEED, EXECPOOL_PDA_SEED,
+};
+use arcium_client::idl::arcium::{
+    accounts::{
+        ClockAccount, Cluster, ComputationDefinitionAccount, PersistentMXEAccount, StakingPoolAccount
+    },
+    program::Arcium,
+    types::Argument,
+    ID_CONST as ARCIUM_PROG_ID,
+};
+use arcium_macros::{
+    arcium_callback, arcium_program, callback_accounts, init_computation_definition_accounts,
+    queue_computation_accounts,
+};
+
+const COMP_DEF_OFFSET_ADD_TOGETHER: u32 = comp_def_offset("add_together");
+
+declare_id!("YOUR_PROGRAM_ID_HERE");
+
+#[arcium_program]
+pub mod hello_world {
+    use super::*;
+
+    pub fn init_add_together_comp_def(ctx: Context<InitAddTogetherCompDef>) -> Result<()> {
+        init_comp_def(ctx.accounts, None)?;
+        Ok(())
+    }
+
+    pub fn add_together(
+        ctx: Context<AddTogether>,
+        computation_offset: u64,
+        ciphertext_0: [u8; 32],
+        ciphertext_1: [u8; 32],
+        pub_key: [u8; 32],
+        nonce: u128,
+    ) -> Result<()> {
+        let args = vec![
+            Argument::EncryptedU8(ciphertext_0),
+            Argument::EncryptedU8(ciphertext_1),
+            Argument::ArcisPubkey(pub_key),
+            Argument::PlaintextU128(nonce),
+        ];
+        queue_computation(ctx.accounts, computation_offset, args, vec![], None)?;
+        Ok(())
+    }
+
+    #[arcium_callback(encrypted_ix = "add_together")]
+    pub fn add_together_callback(ctx: Context<AddTogetherCallback>, output: ComputationOutputs) -> Result<()> {
+        let bytes = if let ComputationOutputs::Bytes(bytes) = output {
+            bytes
+        } else {
+            return Err(ErrorCode::AbortedComputation.into());
+        };
+
+        emit!(SumEvent {
+            sum: bytes[48..80].try_into().unwrap(),
+            nonce: bytes[32..48].try_into().unwrap(),
+        });
+        Ok(())
+    }
+}
