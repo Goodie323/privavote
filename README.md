@@ -1,107 +1,42 @@
-# Structure of this project
+# 🗳️ Privavote
 
-This project is structured pretty similarly to how a regular Solana Anchor project is structured. The main difference lies in there being two places to write code here:
+**Privavote** is a privacy-preserving voting system built using **Multi-Party Computation (MPC)** to ensure that votes remain secure, anonymous, and tamper-proof — without relying on any central authority.
 
-- The `programs` dir like usual Anchor programs
-- The `encrypted-ixs` dir for confidential computing instructions
+## 🔒 Why Privavote?
 
-When working with plaintext data, we can edit it inside our program as normal. When working with confidential data though, state transitions take place off-chain using the Arcium network as a co-processor. For this, we then always need two instructions in our program: one that gets called to initialize a confidential computation, and one that gets called when the computation is done and supplies the resulting data. Additionally, since the types and operations in a Solana program and in a confidential computing environment are a bit different, we define the operations themselves in the `encrypted-ixs` dir using our Rust-based framework called Arcis. To link all of this together, we provide a few macros that take care of ensuring the correct accounts and data are passed for the specific initialization and callback functions:
+Traditional digital voting systems often require voters to place trust in a central server or third party. Privavote eliminates this need by using **MPC**, allowing a group of entities to compute the election result **without revealing individual votes**.
 
-```rust
-// encrypted-ixs/add_together.rs
+This makes it ideal for:
 
-use arcis_imports::*;
+- DAO Governance
+- Academic Council Voting
+- Election Audits
+- Decentralized Organizations
+- Privacy-focused communities
 
-#[encrypted]
-mod circuits {
-    use arcis_imports::*;
+---
 
-    pub struct InputValues {
-        v1: u8,
-        v2: u8,
-    }
+## ⚙️ Tech Stack
 
-    #[instruction]
-    pub fn add_together(input_ctxt: Enc<Shared, InputValues>) -> Enc<Shared, u16> {
-        let input = input_ctxt.to_arcis();
-        let sum = input.v1 as u16 + input.v2 as u16;
-        input_ctxt.owner.from_arcis(sum)
-    }
-}
+- **Python** – Core logic and MPC orchestration
+- **Cryptography** – Secure key handling and encrypted messaging
+- **Multi-Party Computation (MPC)** – Secret-sharing and trustless result computation
+- *(Optional integration-ready)* Smart Contract layer for transparency and verifiability
 
-// programs/my_program/src/lib.rs
+---
 
-declare_id!("<some ID>");
+## 🚀 Features
 
-#[arcium_program]
-pub mod my_program {
-    use super::*;
+- 🔐 **Privacy-Preserving**: No one sees individual votes — not even the system
+- ✅ **Verifiable Computation**: Final results are publicly verifiable
+- 🧩 **Modular**: Easily extendable to support various voting protocols
+- ⚡ **Lightweight & Fast**: Ideal for small teams or large communities
 
-    pub fn init_add_together_comp_def(ctx: Context<InitAddTogetherCompDef>) -> Result<()> {
-        init_comp_def(ctx.accounts, true, None, None)?;
-        Ok(())
-    }
+---
 
-    pub fn add_together(
-        ctx: Context<AddTogether>,
-        computation_offset: u64,
-        ciphertext_0: [u8; 32],
-        ciphertext_1: [u8; 32],
-        pub_key: [u8; 32],
-        nonce: u128,
-    ) -> Result<()> {
-        let args = vec![
-            Argument::ArcisPubkey(pub_key),
-            Argument::PlaintextU128(nonce),
-            Argument::EncryptedU8(ciphertext_0),
-            Argument::EncryptedU8(ciphertext_1),
-        ];
-        queue_computation(ctx.accounts, computation_offset, args, vec![], None)?;
-        Ok(())
-    }
+## 📦 Installation
 
-    #[arcium_callback(encrypted_ix = "add_together")]
-    pub fn add_together_callback(
-        ctx: Context<AddTogetherCallback>,
-        output: ComputationOutputs,
-    ) -> Result<()> {
-        let bytes = if let ComputationOutputs::Bytes(bytes) = output {
-            bytes
-        } else {
-            return Err(ErrorCode::AbortedComputation.into());
-        };
-
-        emit!(SumEvent {
-            sum: bytes[48..80].try_into().unwrap(),
-            nonce: bytes[32..48].try_into().unwrap(),
-        });
-        Ok(())
-    }
-}
-
-#[queue_computation_accounts("add_together", payer)]
-#[derive(Accounts)]
-#[instruction(computation_offset: u64)]
-pub struct AddTogether<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    // ... other required accounts
-}
-
-#[callback_accounts("add_together", payer)]
-#[derive(Accounts)]
-pub struct AddTogetherCallback<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    // ... other required accounts
-    pub some_extra_acc: AccountInfo<'info>,
-}
-
-#[init_computation_definition_accounts("add_together", payer)]
-#[derive(Accounts)]
-pub struct InitAddTogetherCompDef<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    // ... other required accounts
-}
-```
+```bash
+git clone https://github.com/Goodie323/privavote.git
+cd privavote
+pip install -r requirements.txt
